@@ -12,6 +12,8 @@
   <arg name="compute_angles" doc="Fake arg: ros_comm#889"/>
   <arg name="get_adc_raw_values" doc="Fake arg: ros_comm#889"/>
   <arg name="get_encoder_raw_values" doc="Fake arg: ros_comm#889"/>
+  <arg name="set_commands" doc="Fake arg: ros_comm#889"/>
+  <arg name="set_commands_async" doc="Fake arg: ros_comm#889"/>
 
   <!-- device info -->
   <arg name="device_name" default="" doc="The unique device name used in the yaml controller configurations (also in the urdf if not already specified there)."/>

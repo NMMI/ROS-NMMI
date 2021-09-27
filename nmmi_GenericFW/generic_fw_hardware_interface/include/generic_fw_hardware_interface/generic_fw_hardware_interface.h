@@ -34,6 +34,7 @@
 // internal libraries
 #include <qb_device_hardware_interface/qb_device_hardware_interface.h>
 #include <generic_fw_hardware_interface/generic_fw_transmission_interface.h>
+#include <std_msgs/Float64MultiArray.h>
 #include <nmmi_msgs/nmmi_msgs.h>
 #include <nmmi_srvs/nmmi_srvs.h>
 
@@ -94,12 +95,13 @@ protected:
   bool  is_reliable_;
   int   adc_consecutive_failures_;
   int   encoder_consecutive_failures_;
+  bool  old_board_;
 
   std::vector<int16_t> Adc_Raw_;
   std::vector<uint8_t> Adc_Map_;
   uint8_t used_adc_channels_;
   ros::Time adc_time_stamp_;
-  std::vector<uint16_t> Encoder_Raw_;
+  std::vector<int16_t> Encoder_Raw_;
   std::vector<uint8_t> Encoder_Map_;
   uint8_t num_encoder_conf_total_;
   ros::Time enc_time_stamp_;
@@ -110,6 +112,10 @@ protected:
   ros::Publisher generic_pub_encoders_;
   ros::Publisher generic_pub_encoders_state_;
       
+  // Subscriber variables
+  ros::Subscriber generic_sub_motors_;
+
+
   int getADCRawvalues();
 
   int getEncoderRawvalues();
@@ -128,6 +134,11 @@ protected:
    * \sa resetServicesAndWait(), waitForServices()
    */
   void initializeGenericFWServicesAndWait();
+
+  /**
+   * Callbacks to get raw motor references.
+   */
+  void motorCallback(const std_msgs::Float64MultiArray::ConstPtr& msg);
   
   /**
    * Construct a \p qb_device_msgs::StateStamped message of the whole device state with the data retrieved during the
@@ -145,6 +156,17 @@ protected:
    * \sa initializeServicesAndWait(), waitForInitialization(), waitForServices()
    */
   void resetServicesAndWait(const bool &reinitialize_device = true);
+
+  /**
+   * Call the service to send reference commands to the device and wait for the response. Before sending the references,
+   * correct their direction with the \p motor_axis_direction.
+   * \param commands The reference command vector, expressed in \em ticks: if the device is a \em qbhand only the first
+   * element is meaningful while the other remains always \p 0; in the case of a \em qbmove both the elements contain
+   * relevant data, i.e. the commands respectively of \p motor_1 and \p motor_2.
+   * \return \p 0 on success.
+   * \sa getMeasurements()
+   */
+  int setCommands(const std::vector<double> &commands);
 
   /**
    * Wait until the device is initialized.

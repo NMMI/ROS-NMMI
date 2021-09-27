@@ -50,12 +50,32 @@ class nmmiAPI : public qb_device_driver::qbDeviceAPI{
     return commGetADCRawValues(file_descriptor, id, used_adc_channels, (int16_t*)&adc_raw[0]);
   }
 
-  int getEncoderConf(comm_settings *file_descriptor, const int &id, uint8_t &num_encoder_lines, uint8_t &num_encoder_per_line, std::vector<uint8_t> &enc_map) {
-    return commGetEncoderConf(file_descriptor, id, &num_encoder_lines, &num_encoder_per_line, (uint8_t*)&enc_map[0]);
+  int getEncoderConf(comm_settings *file_descriptor, const int &id, bool &old_board, uint8_t &num_encoder_lines, uint8_t &num_encoder_per_line, std::vector<uint8_t> &enc_map) {
+    
+    old_board = false;
+    int res = commGetEncoderConf(file_descriptor, id, &num_encoder_lines, &num_encoder_per_line, (uint8_t*)&enc_map[0]);
+    if (res < 0) {
+      // If commGetEncoderConf returns -1, the connected board is a PSoC3 board instead of a STM32 or PSoC5 board
+      // so set the old board flag
+      num_encoder_lines = 1;
+      short int measurements[6];    // Max number of enocers per line in old boards
+      num_encoder_per_line = commGetMeasurements(file_descriptor, id, measurements);
+      for (int i = 0; i < num_encoder_per_line; i++){
+        enc_map[i] = 1;
+      }
+      old_board = true;
+      return 0;
+    }
+
+    return res;
   }
 
   int getEncoderRawValues(comm_settings *file_descriptor, const int &id, const uint8_t & num_encoder_conf_total, std::vector<uint16_t> &encoder_raw) {
     return commGetEncoderRawValues(file_descriptor, id, num_encoder_conf_total, (uint16_t*)&encoder_raw[0]);
+  }
+
+  int getEncoderStandardValues(comm_settings *file_descriptor, const int &id, short int measurements[]) {
+    return commGetMeasurements(file_descriptor, id, measurements);
   }
 
   int getIMUValues(comm_settings *file_descriptor, const int &id, std::vector<uint8_t> imu_table, std::vector<uint8_t> imus_magcal, int n_imu, const bool &custom_read_timeout, std::vector<float> &imu_values) {

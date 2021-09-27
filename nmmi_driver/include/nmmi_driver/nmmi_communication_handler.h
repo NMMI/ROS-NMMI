@@ -90,7 +90,7 @@ class nmmiCommunicationHandler : public qb_device_communication_handler::qbDevic
 
   bool getADCconfCallback(nmmi_srvs::GetADCMapRequest &request, nmmi_srvs::GetADCMapResponse &response);
 
-  int getEncoderRawvalues(const int &id, const int &max_repeats, const uint8_t &num_encoder_conf_total, std::vector<uint16_t> &enc);
+  int getEncoderRawvalues(const int &id, const int &max_repeats, const uint8_t &num_encoder_conf_total, const bool old_board, std::vector<uint16_t> &enc);
 
   bool getEncoderRawvaluesCallback(nmmi_srvs::GetEncoderRawValuesRequest &request, nmmi_srvs::GetEncoderRawValuesResponse &response);
 
@@ -134,6 +134,15 @@ class nmmiCommunicationHandler : public qb_device_communication_handler::qbDevic
    * \sa qb_device_driver::qbDeviceAPI::getStatus()
    */
   int isConnected(const int &id, const int &max_repeats);
+
+  /**
+   * Send the reference command to the motors of the device relative to the node requesting the service.
+   * \param request The request of the given service (see qb_device_srvs::SetCommands for details).
+   * \param response The response of the given service (see qb_device_srvs::SetCommands for details).
+   * \return \p true if the call succeed (actually \p response.success may be false).
+   * \sa setCommandsAndWait(), setCommandsAsync()
+   */
+  bool setCommandsCallback(qb_device_srvs::SetCommandsRequest &request, qb_device_srvs::SetCommandsResponse &response);
  
  private:
   ros::NodeHandle node_handle_;
@@ -147,6 +156,7 @@ class nmmiCommunicationHandler : public qb_device_communication_handler::qbDevic
   ros::ServiceServer get_imu_values_;
   ros::ServiceServer get_imu_param_;
   ros::ServiceServer initialize_nmmi_device_;
+  ros::ServiceServer set_motor_commands_;
 
   /**
    * Check whether the reading failures are in the given range.

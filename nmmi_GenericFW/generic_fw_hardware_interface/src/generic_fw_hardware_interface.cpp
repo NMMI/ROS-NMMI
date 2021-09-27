@@ -68,12 +68,15 @@ if (services_.at("get_encoder_raw_values")) {
     srv.request.max_repeats = device_.max_repeats;
     srv.request.get_values = get_encoders_values_;
     srv.request.num_encoder_conf_total = num_encoder_conf_total_;
+    srv.request.old_board = old_board_;
     services_.at("get_encoder_raw_values").call(srv);
+
     if (!srv.response.success) {
       ROS_ERROR_STREAM_NAMED("device_hw", "[GENERIC FW DeviceHW] cannot get Encoder Raw values from device [" << device_.id << "].");
       return srv.response.failures;     
     }
     Encoder_Raw_.resize(srv.response.enc_raw.size());
+        
     for (int i=0; i<srv.response.enc_raw.size(); i++){
       Encoder_Raw_.at(i) = srv.response.enc_raw.at(i);
     }
@@ -105,7 +108,9 @@ bool GenericFWHW::init(ros::NodeHandle& root_nh, ros::NodeHandle &robot_hw_nh) {
   generic_pub_adc_state_ = robot_hw_nh.advertise<nmmi_msgs::ADC_State>("adc_state", 1);
   generic_pub_encoders_   = robot_hw_nh.advertise<nmmi_msgs::encoderArray>("encoders", 1);
   generic_pub_encoders_state_ = robot_hw_nh.advertise<nmmi_msgs::Encoder_State>("encoders_state", 1);
-  
+
+  generic_sub_motors_ = robot_hw_nh.subscribe("actuators_command", 1, &GenericFWHW::motorCallback, this);
+
   interfaces_.initialize(this, joints_);
   transmission_.initialize(robot_hw_nh.param<std::string>("transmission", "transmission"), actuators_, joints_);
 
@@ -136,15 +141,15 @@ int GenericFWHW::initializeDevice() {
     }
     device_.max_repeats = max_repeats;
     device_.serial_port = srv.response.info.serial_port;
-
+    device_.set_commands = node_handle_.param<bool>("set_commands", true);
+    device_.set_commands_async = node_handle_.param<bool>("set_commands_async", false);
+    
     device_info_.id = device_.id;
     device_info_.serial_port = device_.serial_port;
     device_info_.max_repeats = device_.max_repeats;
     device_info_.get_currents = device_.get_currents;
     device_info_.get_positions = device_.get_positions;
     device_info_.get_distinct_packages = device_.get_distinct_packages;
-    device_info_.set_commands = device_.set_commands;
-    device_info_.set_commands_async = device_.set_commands_async;
     device_info_.position_limits = device_.position_limits;
     device_info_.encoder_resolutions = device_.encoder_resolutions;
 
@@ -199,6 +204,10 @@ int GenericFWHW::initializeDevice() {
             num_encoder_conf_total_++;
           }
         }
+
+        // If the response variable 'old_board' is set to true, the connected board is a PSoC3 board instead of a STM32 or PSoC5 board
+        // so read encoders with standard reading
+        old_board_ = encmap_srv.response.old_board;
       }
     }
 
@@ -212,12 +221,29 @@ int GenericFWHW::initializeDevice() {
 }
 
 void GenericFWHW::initializeGenericFWServicesAndWait() {
+  services_["activate_motors"] = node_handle_.serviceClient<qb_device_srvs::Trigger>("/communication_handler/activate_motors", true);
+  services_["deactivate_motors"] = node_handle_.serviceClient<qb_device_srvs::Trigger>("/communication_handler/deactivate_motors", true);
   services_["get_adc_raw_values"] = node_handle_.serviceClient<nmmi_srvs::GetADCRawValues>("/communication_handler/get_adc_raw_values", true);
   services_["get_adc_conf"] = node_handle_.serviceClient<nmmi_srvs::GetADCMap>("/communication_handler/get_adc_conf", true);
   services_["get_encoder_raw_values"] = node_handle_.serviceClient<nmmi_srvs::GetEncoderRawValues>("/communication_handler/get_encoder_raw_values", true);
   services_["get_encoder_conf"] = node_handle_.serviceClient<nmmi_srvs::GetEncoderMap>("/communication_handler/get_encoder_conf", true);
   services_["initialize_nmmi_device"] = node_handle_.serviceClient<qb_device_srvs::InitializeDevice>("/communication_handler/initialize_nmmi_device", true);
+  services_["set_motor_commands"] = node_handle_.serviceClient<qb_device_srvs::SetCommands>("/communication_handler/set_motor_commands", true);
   waitForServices();
+}
+
+/*---------------------------------------------------------------------*
+*                                                *
+*                                                                      *
+*----------------------------------------------------------------------*/
+void GenericFWHW::motorCallback(const std_msgs::Float64MultiArray::ConstPtr& msg){
+
+  // Note: This callback acts as a bypass for the qbDeviceHWResources interface
+
+  actuators_.commands.clear();
+  actuators_.commands.push_back(msg->data[0]);
+  actuators_.commands.push_back(msg->data[1]);
+
 }
 
 void GenericFWHW::publish() {
@@ -265,8 +291,8 @@ void GenericFWHW::publish() {
 
     // Fill single topic
     tmp_enc.board_id = device_.id;
-    tmp_enc.encoder_id = Adc_Map_.at(i);
-    tmp_enc.value = Adc_Raw_.at(i);
+    tmp_enc.encoder_id = Encoder_Map_.at(i);
+    tmp_enc.value = Encoder_Raw_.at(i);
     enc.m.push_back(tmp_enc);    
   }
 
@@ -304,6 +330,31 @@ void GenericFWHW::resetServicesAndWait(const bool &reinitialize_device) {
   }
 }
 
+int GenericFWHW::setCommands(const std::vector<double> &commands) {
+  if (services_.at("set_motor_commands")) {
+    qb_device_srvs::SetCommands srv;
+    srv.request.id = device_.id;
+    srv.request.max_repeats = device_.max_repeats;
+    srv.request.set_commands = device_.set_commands;
+    srv.request.set_commands_async = device_.set_commands_async;
+
+    for (auto const &command : commands) {
+      srv.request.commands.push_back(static_cast<short int>(command));
+      //srv.request.commands.push_back(static_cast<short int>(command) * device_.motor_axis_direction);
+    }
+
+    services_.at("set_motor_commands").call(srv);
+    if (!srv.response.success) {
+      ROS_ERROR_STREAM_NAMED("device_hw", "[DeviceHW] cannot send commands to device [" << device_.id << "].");
+      return -1;
+    }
+    return 0;
+  }
+  ROS_WARN_STREAM_NAMED("device_hw", "[DeviceHW] service [set_commands] seems no longer advertised. Trying to reconnect...");
+  resetServicesAndWait();
+  return -1;
+}
+
 void GenericFWHW::waitForInitialization() {
   while(initializeDevice()) {
     ros::Duration(1.0).sleep();
@@ -318,7 +369,16 @@ void GenericFWHW::waitForServices() {
 }
 
 void GenericFWHW::write(const ros::Time& time, const ros::Duration& period) {
-  // Empty function since Generic device has no actuators configured yet, so it does not need to send actuator command to the hardware
+  // Generic device has 2 actuators as default
+
+  // enforce joint limits for all registered interfaces
+  joint_limits_.enforceLimits(period);
+
+  // propagate joint commands to actuators
+  transmission_.joint_to_actuator_position.propagate();
+
+  // send actuator commands to the hardware
+  setCommands(actuators_.commands);
 }
 
 PLUGINLIB_EXPORT_CLASS(generic_fw_hardware_interface::GenericFWHW, hardware_interface::RobotHW)

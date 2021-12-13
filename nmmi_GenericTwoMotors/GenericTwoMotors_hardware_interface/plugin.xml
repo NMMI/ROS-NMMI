@@ -1,0 +1,7 @@
+<library path="libgenerictwomotors_hardware_interface">
+  <class name="GenericTwoMotors_hardware_interface/GenericTwoMotorsHW" type="GenericTwoMotors_hardware_interface::GenericTwoMotorsHW" base_class_type="hardware_interface::RobotHW">
+  <description>
+    A type of RobotHW
+  </description>
+  </class>
+</library>

@@ -90,7 +90,9 @@ class nmmiCommunicationHandler : public qb_device_communication_handler::qbDevic
 
   bool getADCconfCallback(nmmi_srvs::GetADCMapRequest &request, nmmi_srvs::GetADCMapResponse &response);
 
-  int getEncoderRawvalues(const int &id, const int &max_repeats, const uint8_t &num_encoder_conf_total, std::vector<uint16_t> &enc);
+  bool getControlModeCallback(nmmi_srvs::GetControlModeRequest &request, nmmi_srvs::GetControlModeResponse &response);
+
+  int getEncoderRawvalues(const int &id, const int &max_repeats, const uint8_t &num_encoder_conf_total, const bool old_board, std::vector<uint16_t> &enc);
 
   bool getEncoderRawvaluesCallback(nmmi_srvs::GetEncoderRawValuesRequest &request, nmmi_srvs::GetEncoderRawValuesResponse &response);
 
@@ -116,6 +118,20 @@ class nmmiCommunicationHandler : public qb_device_communication_handler::qbDevic
   bool getIMUparamCallback(nmmi_srvs::GetIMUParamRequest &request, nmmi_srvs::GetIMUParamResponse &response);
 
   /**
+   * Retrieve some of the parameters from the given device.
+   * \param id The ID of the device of interest, in range [\p 1, \p 128].
+   * \param[out] limits The vector of motor position limits expressed in \em ticks: two values for each motor,
+   * respectively [\p lower_limit, \p upper_limit].
+   * \param[out] resolutions The vector of encoder resolutions, each in range [\p 0, \p 8]: one value for each encoder
+   * (\b note: the \em qbmove has also the shaft encoder even if it is not actuated). The word "resolution" could be
+   * misunderstood: taken the resolution \p r, \f$2^r\f$ is the number of turns of the wire inside the device mechanics.
+   * It is used essentially to convert the measured position of the motors in \em ticks to \em radians or \em degrees.
+   * \return \p 0 on success.
+   * \sa qb_device_driver::qbDeviceAPI::getParameters(), getInfo(), initializeCallback()
+   */
+  int getParameters(const int &id, std::vector<int> &limits, std::vector<int> &resolutions);
+
+  /**
    * Initialize the device node requesting the service to the Communication Handler if the relative physical device is
    * connected through any serial port to the system (can re-scan the serial resources if specified in the request).
    * If the device is found, retrieve some of its parameter and activate its motors, if requested.
@@ -134,6 +150,15 @@ class nmmiCommunicationHandler : public qb_device_communication_handler::qbDevic
    * \sa qb_device_driver::qbDeviceAPI::getStatus()
    */
   int isConnected(const int &id, const int &max_repeats);
+
+  /**
+   * Send the reference command to the motors of the device relative to the node requesting the service.
+   * \param request The request of the given service (see qb_device_srvs::SetCommands for details).
+   * \param response The response of the given service (see qb_device_srvs::SetCommands for details).
+   * \return \p true if the call succeed (actually \p response.success may be false).
+   * \sa setCommandsAndWait(), setCommandsAsync()
+   */
+  bool setCommandsCallback(qb_device_srvs::SetCommandsRequest &request, qb_device_srvs::SetCommandsResponse &response);
  
  private:
   ros::NodeHandle node_handle_;
@@ -142,11 +167,13 @@ class nmmiCommunicationHandler : public qb_device_communication_handler::qbDevic
 
   ros::ServiceServer get_adc_raw_values_;
   ros::ServiceServer get_adc_conf_;
+  ros::ServiceServer get_control_mode_;
   ros::ServiceServer get_encoder_raw_values_;
   ros::ServiceServer get_encoder_conf_;
   ros::ServiceServer get_imu_values_;
   ros::ServiceServer get_imu_param_;
   ros::ServiceServer initialize_nmmi_device_;
+  ros::ServiceServer set_motor_commands_;
 
   /**
    * Check whether the reading failures are in the given range.

@@ -1,0 +1,20 @@
+<package format="2">
+  <name>generictwomotors</name>
+  <version>2.1.1</version>
+  <description>
+    This package contains the ROS interface for a Generic Two Motors device.
+  </description>
+  <author>Centro "E. Piaggio"</author>
+  <maintainer email="info@naturalmachinemotioninitiative.com">NMMI</maintainer>
+  <license>BSD 3-Clause</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <exec_depend>generictwomotors_control</exec_depend>
+  <exec_depend>generictwomotors_description</exec_depend>
+  <exec_depend>generictwomotors_hardware_interface</exec_depend>
+
+  <export>
+    <metapackage/>
+  </export>
+</package>

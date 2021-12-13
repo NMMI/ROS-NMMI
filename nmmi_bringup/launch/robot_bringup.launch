@@ -12,6 +12,8 @@
   <arg name="compute_angles" doc="Fake arg: ros_comm#889"/>
   <arg name="get_adc_raw_values" doc="Fake arg: ros_comm#889"/>
   <arg name="get_encoder_raw_values" doc="Fake arg: ros_comm#889"/>
+  <arg name="set_commands" doc="Fake arg: ros_comm#889"/>
+  <arg name="set_commands_async" doc="Fake arg: ros_comm#889"/>
 
   <!-- device info -->
   <arg name="device_name" default="" doc="The unique device name used in the yaml controller configurations (also in the urdf if not already specified there)."/>
@@ -22,8 +24,27 @@
   <arg name="robot_namespace" default="$(arg robot_name)" doc="The unique robot namespace."/>
   <arg name="robot_package" doc="The base package name prefix for the robot configurations [urdf, rviz, ...]."/>
 
-  <group ns="$(arg robot_namespace)">
+  <group ns="$(arg robot_namespace)" if="$(eval device_type == 'SoftHandPro' or device_type == 'GenericTwoMotors')">
 
+  <!-- bring up robot description, joint and robot state publishers (also can   start rviz) -->
+    <include file="$(find qb_device_bringup)/launch/robot_description_bringup.launch">
+      <arg name="device_name" value="$(arg device_name)"/>
+      <arg name="robot_name" value="$(arg robot_name)"/>
+      <arg name="robot_package" value="$(arg robot_package)"/>
+      <arg name="source_list" value="$(arg source_list)"/>
+      <arg name="use_rviz" value="$(arg use_rviz)"/>
+    </include>
+
+    <!-- set up control addons (gui, waypoint, ...) -->
+    <include file="$(find qb_device_bringup)/launch/robot_opt_bringup.launch">
+      <arg name="robot_name" value="$(arg robot_name)"/>
+      <arg name="robot_package" value="$(arg robot_package)"/>
+      <arg name="use_controller_gui" value="$(arg use_controller_gui)"/>
+    </include>
+  </group>
+
+  <group ns="$(arg robot_namespace)">
+    
     <!-- start the control node -->
     <include file="$(find qb_device_bringup)/launch/robot_control_node_bringup.launch">
       <arg name="control_duration" value="$(arg control_duration)"/>

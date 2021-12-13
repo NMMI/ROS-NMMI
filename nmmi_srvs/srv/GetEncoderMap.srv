@@ -6,4 +6,5 @@ bool success
 int32 failures
 uint8 num_encoder_lines
 uint8 num_encoder_per_line
+bool old_board
 uint8[] map

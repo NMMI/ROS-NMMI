@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<robot name="generictwomotors" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:include filename="$(find generictwomotors_description)/urdf/GenericTwoMotors.utils.xacro" ns="generictwomotors"/>
+  <xacro:arg name="namespace" default="generictwomotors"/>
+
+  <link name="root_link"/>
+	<xacro:generictwomotors.build_move_from_yaml namespace="$(arg namespace)" parent="root">
+    <origin xyz="0.033 0 0.033" rpy="0 -1.57 0"/>
+  </xacro:generictwomotors.build_move_from_yaml>
+
+</robot>

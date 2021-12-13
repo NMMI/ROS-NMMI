@@ -37,8 +37,10 @@ nmmiCommunicationHandler::nmmiCommunicationHandler() :
     get_imu_param_(node_handle_.advertiseService("/communication_handler/get_imu_param", &nmmiCommunicationHandler::getIMUparamCallback, this)),
     get_adc_raw_values_(node_handle_.advertiseService("/communication_handler/get_adc_raw_values", &nmmiCommunicationHandler::getADCRawvaluesCallback, this)),
     get_adc_conf_(node_handle_.advertiseService("/communication_handler/get_adc_conf", &nmmiCommunicationHandler::getADCconfCallback, this)),
+    get_control_mode_(node_handle_.advertiseService("/communication_handler/get_control_mode", &nmmiCommunicationHandler::getControlModeCallback, this)),
     get_encoder_raw_values_(node_handle_.advertiseService("/communication_handler/get_encoder_raw_values", &nmmiCommunicationHandler::getEncoderRawvaluesCallback, this)),
     get_encoder_conf_(node_handle_.advertiseService("/communication_handler/get_encoder_conf", &nmmiCommunicationHandler::getEncoderconfCallback, this)),    
+    set_motor_commands_(node_handle_.advertiseService("/communication_handler/set_motor_commands", &nmmiCommunicationHandler::setCommandsCallback, this)),
     initialize_nmmi_device_(node_handle_.advertiseService("/communication_handler/initialize_nmmi_device", &nmmiCommunicationHandler::initializeNMMIDeviceCallback, this)){
 }
 
@@ -118,7 +120,23 @@ bool nmmiCommunicationHandler::getADCconfCallback(nmmi_srvs::GetADCMapRequest &r
   return true;
 }
 
-int nmmiCommunicationHandler::getEncoderRawvalues(const int &id, const int &max_repeats, const uint8_t &num_encoder_conf_total, std::vector<uint16_t> &enc){
+bool nmmiCommunicationHandler::getControlModeCallback(nmmi_srvs::GetControlModeRequest &request, nmmi_srvs::GetControlModeResponse &response){
+  
+  ROS_ERROR_STREAM_COND_NAMED(request.id < 0, "NMMI communication_handler", "Device [" << request.id << "] does not exist.");
+  if (!isInConnectedSet(request.id)) {
+    response.success = false;
+    return true;
+  }
+  
+  std::lock_guard<std::mutex> serial_lock(*serial_protectors_.at(connected_devices_.at(request.id)));
+
+  response.failures = nmmi_api_->getControlMode(&file_descriptors_.at(connected_devices_.at(request.id)), request.id, response.control_mode);  // blocks while reading
+  response.success = isReliable(response.failures, 3);
+
+  return true;
+}
+
+int nmmiCommunicationHandler::getEncoderRawvalues(const int &id, const int &max_repeats, const uint8_t &num_encoder_conf_total, const bool old_board, std::vector<uint16_t> &enc){
   // the API methods are called at most (i.e. very unlikely) 'max_repeats' times to guarantee the correct identification of a real fault in the communication
   int failures = 0;
   bool good_reading = false;
@@ -132,9 +150,22 @@ int nmmiCommunicationHandler::getEncoderRawvalues(const int &id, const int &max_
 
   while (failures <= max_repeats) {
   
+    if (!old_board){
       good_reading = (!nmmi_api_->getEncoderRawValues(&file_descriptors_.at(connected_devices_.at(id)), id, 
-                    num_encoder_conf_total, encoder_raw_values));
-  
+                    num_encoder_conf_total, encoder_raw_values));  
+    }
+    else {
+      short int meas[num_encoder_conf_total];
+      for(int i = 0; i < num_encoder_conf_total; i++){
+        meas[i] = 0;
+      }
+      
+      good_reading = (nmmi_api_->getEncoderStandardValues(&file_descriptors_.at(connected_devices_.at(id)), id, meas) > 0);  
+      for (int i=0; i < num_encoder_conf_total;i++){
+        encoder_raw_values[i] = meas[i];
+      }
+    }
+    
     if (good_reading) {
       // Unpack adc_raw_values vector
       for (int i = 0; i < num_encoder_conf_total; i++) {
@@ -160,7 +191,7 @@ bool nmmiCommunicationHandler::getEncoderRawvaluesCallback(nmmi_srvs::GetEncoder
 
   response.failures = 0;  // need to return true even if 'get_values' is set to false
   if (request.get_values) {
-    response.failures = getEncoderRawvalues(request.id, request.max_repeats, request.num_encoder_conf_total, response.enc_raw);  // blocks while reading
+    response.failures = getEncoderRawvalues(request.id, request.max_repeats, request.num_encoder_conf_total, request.old_board, response.enc_raw);  // blocks while reading
   }
 
   response.stamp = ros::Time::now();
@@ -171,6 +202,8 @@ bool nmmiCommunicationHandler::getEncoderRawvaluesCallback(nmmi_srvs::GetEncoder
 bool nmmiCommunicationHandler::getEncoderconfCallback(nmmi_srvs::GetEncoderMapRequest &request, nmmi_srvs::GetEncoderMapResponse &response){
   uint8_t num_encoder_lines = 2;
   uint8_t num_encoder_per_line = 5;
+  bool old_board = false;
+
   std::vector<uint8_t> enc_map_v(num_encoder_lines*num_encoder_per_line);     // Size equal to max number of encoders available
 
   ROS_ERROR_STREAM_COND_NAMED(request.id < 0, "NMMI communication_handler", "Device [" << request.id << "] does not exist.");
@@ -180,9 +213,10 @@ bool nmmiCommunicationHandler::getEncoderconfCallback(nmmi_srvs::GetEncoderMapRe
   }
   std::lock_guard<std::mutex> serial_lock(*serial_protectors_.at(connected_devices_.at(request.id)));
 
-  response.failures = nmmi_api_->getEncoderConf(&file_descriptors_.at(connected_devices_.at(request.id)), request.id, num_encoder_lines, num_encoder_per_line, enc_map_v);  // blocks while reading
+  response.failures = nmmi_api_->getEncoderConf(&file_descriptors_.at(connected_devices_.at(request.id)), request.id, old_board, num_encoder_lines, num_encoder_per_line, enc_map_v);  // blocks while reading
   response.num_encoder_lines = num_encoder_lines;
   response.num_encoder_per_line = num_encoder_per_line;
+  response.old_board = old_board;
   response.map.resize(response.num_encoder_lines * response.num_encoder_per_line);
   for (int i=0; i< response.num_encoder_lines * response.num_encoder_per_line; i++){
     response.map.at(i) = enc_map_v.at(i);
@@ -294,6 +328,17 @@ bool nmmiCommunicationHandler::getIMUparamCallback(nmmi_srvs::GetIMUParamRequest
   return true;
 }
 
+int nmmiCommunicationHandler::getParameters(const int &id, std::vector<int> &limits, std::vector<int> &resolutions) {
+  std::vector<int> input_mode = {-1};
+  std::vector<int> ctrl_mode = {-1};
+  nmmi_api_->getParameters(&file_descriptors_.at(connected_devices_.at(id)), id, input_mode, ctrl_mode, resolutions, limits);
+  if (!input_mode.front()) {  // at least input mode equals 0 is required, i.e. USB connected
+
+    return 0;
+  }
+  return -1;
+}
+
 bool nmmiCommunicationHandler::initializeNMMIDeviceCallback(qb_device_srvs::InitializeDeviceRequest &request, qb_device_srvs::InitializeDeviceResponse &response) {
 
   ROS_ERROR_STREAM_COND_NAMED(request.max_repeats < 0, "NMMI communication_handler", "Device [" << request.id << "] has request service with non-valid 'max_request' [" << request.max_repeats << "].");
@@ -311,6 +356,23 @@ bool nmmiCommunicationHandler::initializeNMMIDeviceCallback(qb_device_srvs::Init
     response.message = "Device [" + std::to_string(request.id) + "] initialization fails because it is not connected.";
     response.success = false;
     return true;
+  }
+  
+  if (getParameters(request.id, response.info.position_limits, response.info.encoder_resolutions)) {
+    ROS_ERROR_STREAM_NAMED("communication_handler", "[CommunicationHandler] fails while initializing device [" << request.id << "] because it requires 'USB' input mode and 'Position' control mode.");
+    response.message = "Device [" + std::to_string(request.id) + "] initialization fails because it requires 'USB' input mode and 'Position' control mode.";
+    response.success = false;
+    return true;
+  }
+
+  if (request.activate) {
+    response.failures = activate(request.id, request.max_repeats);
+    response.success = isReliable(response.failures, request.max_repeats);
+    if (!response.success) {
+      ROS_INFO_STREAM_NAMED("NMMI communication_handler", "[CommunicationHandler] has not initialized device [" << request.id << "] because it cannot activate its motors (please, check the motor positions).");
+      response.message = "Device [" + std::to_string(request.id) + "] initialization fails because it cannot activate the device (please, check the motor positions).";
+      return true;
+    }
   }
 
   response.info.id = request.id;
@@ -333,4 +395,8 @@ int nmmiCommunicationHandler::isConnected(const int &id, const int &max_repeats)
     break;
   }*/
   return failures;
+}
+
+bool nmmiCommunicationHandler::setCommandsCallback(qb_device_srvs::SetCommandsRequest &request, qb_device_srvs::SetCommandsResponse &response) {
+ return qbDeviceCommunicationHandler::setCommandsCallback(request, response);
 }

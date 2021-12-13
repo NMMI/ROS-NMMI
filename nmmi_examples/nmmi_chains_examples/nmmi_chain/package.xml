@@ -1,0 +1,19 @@
+<package format="2">
+  <name>nmmi_chain</name>
+  <version>1.0.0</version>
+  <description>
+    This package contains the ROS interface to control multiple  NMMI and qbrobotics® devices simultaneously.
+  </description>
+  <author>Centro "E. Piaggio"</author>
+  <maintainer email="info@naturalmachinemotioninitiative.com">NMMI</maintainer>
+  <license>BSD 3-Clause</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <exec_depend>nmmi_chain_control</exec_depend>
+  <exec_depend>nmmi_chain_description</exec_depend>
+
+  <export>
+    <metapackage/>
+  </export>
+</package>

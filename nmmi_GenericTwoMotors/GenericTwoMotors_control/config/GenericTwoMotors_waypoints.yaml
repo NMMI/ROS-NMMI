@@ -1,0 +1,20 @@
+# Waypoints describe the desired motion trajectory:
+#  - time [s]: can be either a single value or an interval for which joint_positions hold
+#  - joint_positions:
+#     - shaft position [radians] and stiffness preset [0,1];
+#  - joint_velocities: optional, use it only if you want a nonzero values
+#     - shaft position [radians/s] and stiffness preset [0,1]/s;
+#  - joint_accelerations: optional, use it only if you want a nonzero values
+#     - shaft position [radians/s^2] and stiffness preset [0,1]/s^2;
+#
+# It is worth noting that, if specified, joint_positions, joint_velocities and joint_accelerations must be of size two.
+
+waypoints:
+  -
+    time: [2.0]
+    joint_positions:
+      GenericTwoMotors: [-1.0, 0.0]
+  -
+    time: [4.0, 4.2]
+    joint_positions:
+      GenericTwoMotors: [1.0, 0.0]

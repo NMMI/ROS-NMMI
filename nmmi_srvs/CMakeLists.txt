@@ -14,6 +14,7 @@ add_service_files(
   FILES
     GetADCRawValues.srv
     GetADCMap.srv
+    GetControlMode.srv
     GetEncoderRawValues.srv
     GetEncoderMap.srv
     GetIMUValues.srv

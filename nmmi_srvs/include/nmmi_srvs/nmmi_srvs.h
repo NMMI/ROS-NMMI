@@ -31,6 +31,7 @@
 // auto-generated msg headers
 #include <nmmi_srvs/GetADCRawValues.h>
 #include <nmmi_srvs/GetADCMap.h>
+#include <nmmi_srvs/GetControlMode.h>
 #include <nmmi_srvs/GetEncoderRawValues.h>
 #include <nmmi_srvs/GetEncoderMap.h>
 #include <nmmi_srvs/GetIMUValues.h>

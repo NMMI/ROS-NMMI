@@ -1,0 +1,16 @@
+<package format="2">
+  <name>nmmi_chain_description</name>
+  <version>1.0.0</version>
+  <description>
+    This package contains the ROS description for complex chains of NMMI and qbrobotics® devices.
+  </description>
+  <author>Centro "E. Piaggio"</author>
+  <maintainer email="info@naturalmachinemotioninitiative.com">NMMI</maintainer>
+  <license>BSD 3-Clause</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <export>
+    <architecture_independent/>
+  </export>
+</package>

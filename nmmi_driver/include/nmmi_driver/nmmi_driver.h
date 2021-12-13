@@ -50,12 +50,44 @@ class nmmiAPI : public qb_device_driver::qbDeviceAPI{
     return commGetADCRawValues(file_descriptor, id, used_adc_channels, (int16_t*)&adc_raw[0]);
   }
 
-  int getEncoderConf(comm_settings *file_descriptor, const int &id, uint8_t &num_encoder_lines, uint8_t &num_encoder_per_line, std::vector<uint8_t> &enc_map) {
-    return commGetEncoderConf(file_descriptor, id, &num_encoder_lines, &num_encoder_per_line, (uint8_t*)&enc_map[0]);
+  int getControlMode(comm_settings *file_descriptor, const int &id, uint8_t &control_mode) {
+    std::vector<int> ctrl_mode = {-1};
+    unsigned char parameter_buffer[5000];
+    int res = commGetParamList(file_descriptor, id, 0, NULL, 0, 0, parameter_buffer);
+    ros::Duration(0.001).sleep();  // unexpected behaviour with no sleep
+
+    getParameter<uint8_t>(6, parameter_buffer, ctrl_mode);
+    
+    control_mode = ctrl_mode.front();
+    return res;
+  }
+
+  int getEncoderConf(comm_settings *file_descriptor, const int &id, bool &old_board, uint8_t &num_encoder_lines, uint8_t &num_encoder_per_line, std::vector<uint8_t> &enc_map) {
+    
+    old_board = false;
+    int res = commGetEncoderConf(file_descriptor, id, &num_encoder_lines, &num_encoder_per_line, (uint8_t*)&enc_map[0]);
+    if (res < 0) {
+      // If commGetEncoderConf returns -1, the connected board is a PSoC3 board instead of a STM32 or PSoC5 board
+      // so set the old board flag
+      num_encoder_lines = 1;
+      short int measurements[6];    // Max number of enocers per line in old boards
+      num_encoder_per_line = commGetMeasurements(file_descriptor, id, measurements);
+      for (int i = 0; i < num_encoder_per_line; i++){
+        enc_map[i] = 1;
+      }
+      old_board = true;
+      return 0;
+    }
+
+    return res;
   }
 
   int getEncoderRawValues(comm_settings *file_descriptor, const int &id, const uint8_t & num_encoder_conf_total, std::vector<uint16_t> &encoder_raw) {
     return commGetEncoderRawValues(file_descriptor, id, num_encoder_conf_total, (uint16_t*)&encoder_raw[0]);
+  }
+
+  int getEncoderStandardValues(comm_settings *file_descriptor, const int &id, short int measurements[]) {
+    return commGetMeasurements(file_descriptor, id, measurements);
   }
 
   int getIMUValues(comm_settings *file_descriptor, const int &id, std::vector<uint8_t> imu_table, std::vector<uint8_t> imus_magcal, int n_imu, const bool &custom_read_timeout, std::vector<float> &imu_values) {
@@ -83,6 +115,49 @@ class nmmiAPI : public qb_device_driver::qbDeviceAPI{
 
     return 0;
   }
+
+private:
+  /**
+   * Extract the specified parameter from the given buffer where all the device parameters are stored.
+   * \tparam T The data type of the single field of the parameter to be retrieved, e.g. \p int32_t.
+   * \param parameter_id The specific value of the parameter to be retrieved, mapped in the device firmware.
+   * \param[out] parameter_vector The vector where the values are stored (\b note: it is initially cleared).
+   * \sa getParameters()
+   */
+  template<class T>
+  void getParameter(const int &parameter_id, unsigned char *parameter_buffer, std::vector<int> &parameter_vector) {
+    parameter_vector.clear();
+    int number_of_values = parameter_buffer[(parameter_id-1)*PARAM_BYTE_SLOT + 7];
+    int value_size = sizeof(T);
+    for (int i=0; i<number_of_values; i++) {
+      T parameter_field = 0;
+      for (int j=0; j<value_size; j++) {
+        parameter_field += parameter_buffer[(parameter_id-1)*PARAM_BYTE_SLOT + 8 + i*value_size + value_size - j - 1] << (8 * j);
+      }
+      parameter_vector.push_back(parameter_field);
+    }
+  }
+
+  /**
+   * Extract the specified parameter from the given buffer where all the device parameters are stored.
+   * \tparam T The data type of the single field of the parameter to be retrieved, e.g. \p float.
+   * \param parameter_id The specific value of the parameter to be retrieved, mapped in the device firmware.
+   * \param[out] parameter_vector The vector where the values are stored (\b note: it is initially cleared).
+   * \sa getParameters()
+   */
+  template<class T>
+  void getParameter(const int &parameter_id, unsigned char *parameter_buffer, std::vector<float> &parameter_vector) {
+    parameter_vector.clear();
+    int number_of_values = parameter_buffer[(parameter_id-1)*PARAM_BYTE_SLOT + 7];
+    int value_size = sizeof(T);
+    for (int i=0; i<number_of_values; i++) {
+      std::vector<uint8_t> parameter_field(value_size, 0);
+      for (int j=0; j<value_size; j++) {
+        parameter_field.at(j) = parameter_buffer[(parameter_id-1)*PARAM_BYTE_SLOT + 8 + i*value_size + value_size - j - 1];
+      }
+      parameter_vector.push_back(*(reinterpret_cast<T*>(parameter_field.data())));
+    }
+  }  
 };
 typedef std::shared_ptr<nmmiAPI> nmmiAPIPtr;
 }  // namespace nmmi_driver

@@ -43,7 +43,7 @@
       </include>
     </group>
 
-    <group ns="control" if="$(eval device_type == 'SoftHandPro')">
+    <group ns="control" if="$(eval device_type == 'SoftHandPro' or device_type == 'GenericTwoMotors')">
       <include file="$(find nmmi_bringup)/launch/device_controllers_bringup.launch">
         <arg name="device_name" value="$(arg device_name)"/>
         <arg name="device_type" value="$(arg device_type)"/>
@@ -58,7 +58,8 @@
       <param name="type" type="str" value="qb_hand_hardware_interface/qbHandHW" if="$(eval device_type == 'qbhand')"/>
       <param name="type" type="str" value="qb_move_hardware_interface/qbMoveHW" if="$(eval device_type == 'qbmove')"/>
       <param name="type" type="str" value="SoftHandPro_hardware_interface/SoftHandProHW" if="$(eval device_type == 'SoftHandPro')"/>   
-      <param name="type" type="str" value="imu_hardware_interface/IMUHW" if="$(eval device_type == 'imu')"/>           
+      <param name="type" type="str" value="imu_hardware_interface/IMUHW" if="$(eval device_type == 'imu')"/>
+      <param name="type" type="str" value="GenericTwoMotors_hardware_interface/GenericTwoMotorsHW" if="$(eval device_type == 'GenericTwoMotors')"/>           
       <param name="type" type="str" value="generic_fw_hardware_interface/GenericFWHW" if="$(eval device_type == 'generic')"/>
       <!-- read/write settings -->
       <param name="get_currents" type="bool" value="$(arg get_currents)"/>

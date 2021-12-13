@@ -1,0 +1,27 @@
+<package format="2">
+  <name>generic_fw_hardware_interface</name>
+  <version>2.1.1</version>
+  <description>
+    This package contains the hardware interface for additional tools uploaded only on a NMMI device with generic fw.
+  </description>
+  <author>Centro "E. Piaggio"</author>
+  <maintainer email="info@naturalmachinemotioninitiative.com">NMMI</maintainer>
+  <license>BSD 3-Clause</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <depend>roscpp</depend>
+  <depend>control_toolbox</depend>
+  <depend>hardware_interface</depend>
+  <depend>qb_device_hardware_interface</depend>
+  <depend>transmission_interface</depend>
+  <depend>nmmi_msgs</depend>
+  <depend>nmmi_srvs</depend>
+
+  <export>
+    <hardware_interface plugin="${prefix}/plugin.xml"/>
+  </export>
+
+  <!--TODO: <test_depend>gtest</test_depend>-->
+  <doc_depend>doxygen</doc_depend>
+</package>

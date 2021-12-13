@@ -5,8 +5,7 @@
   <xacro:include filename="$(find qb_hand_description)/urdf/qbhand.utils.xacro"/>
 
   <link name="root_link"/>
-  <xacro:generictwomotors.build_flange_from_yaml flange="base_flange" namespace="GenericTwoMotors11" parent="root"/>
-  <xacro:generictwomotors.build_move_from_yaml namespace="GenericTwoMotors11" parent="GenericTwoMotors11_base_flange">
+  <xacro:generictwomotors.build_move_from_yaml namespace="GenericTwoMotors11" parent="root">
     <origin xyz="0.033 0 0.033" rpy="0 -1.57 0"/>
   </xacro:generictwomotors.build_move_from_yaml>
 

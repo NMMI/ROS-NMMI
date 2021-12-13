@@ -1,7 +1,0 @@
-<library path="libgeneric_fw_hardware_interface">
-  <class name="generic_fw_hardware_interface/GenericFWHW" type="generic_fw_hardware_interface::GenericFWHW" base_class_type="hardware_interface::RobotHW">
-  <description>
-    A type of RobotHW
-  </description>
-  </class>
-</library>
